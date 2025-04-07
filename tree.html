@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Tree Visualizer (BST/AVL/Traversal)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px;
+        }
+        .control-group {
+             margin-bottom: 15px;
+             padding: 12px;
+             border: 1px solid #eee;
+             border-radius: 5px;
+             background-color: #f9f9f9;
+             display: flex; /* Use flexbox for alignment */
+             flex-wrap: wrap; /* Allow wrapping */
+             align-items: center; /* Align items vertically */
+             gap: 10px; /* Spacing between elements */
+             width: 90%; /* Make control groups wider */
+             max-width: 900px; /* Max width */
+             box-sizing: border-box; /* Include padding/border in width */
+        }
+
+         .control-group label {
+             margin-right: 5px;
+             font-weight: bold;
+         }
+         input[type="text"], input[type="number"], select {
+             padding: 8px;
+             margin-right: 10px;
+             border: 1px solid #ccc;
+             border-radius: 3px;
+         }
+         input#numberSequence, input#inorderSequence, input#otherSequence {
+             flex-grow: 1; /* Allow text inputs to take available space */
+             min-width: 200px;
+         }
+         input#addValue, input#deleteValue {
+             width: 70px;
+         }
+
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            background-color: #007bff; /* Blue */
+            color: white;
+            border: none;
+            border-radius: 3px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover:not(:disabled) {
+             background-color: #0056b3;
+        }
+        button:disabled {
+             background-color: #ccc;
+             cursor: not-allowed;
+        }
+        button#clearBtn {
+            background-color: #dc3545; /* Red */
+        }
+         button#clearBtn:hover:not(:disabled) {
+             background-color: #c82333;
+         }
+
+        #treeContainer {
+            border: 1px solid #ccc;
+            width: 90%; /* Match control group width */
+            max-width: 900px; /* Max width */
+            min-height: 450px;
+            overflow: auto;
+            position: relative;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Styling for SVG elements */
+        .node circle {
+            fill: lightblue;
+            stroke: steelblue;
+            stroke-width: 2px;
+            transition: fill 0.3s ease;
+        }
+        .node:hover circle {
+             fill: #87CEEB;
+        }
+        .node text {
+            font-size: 12px;
+            font-weight: bold;
+            fill: black;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .link {
+            stroke: #999;
+            stroke-width: 1.5px;
+        }
+        #messageArea {
+            color: navy;
+            margin-top: 15px; /* Increased spacing */
+            min-height: 1.2em;
+            font-weight: bold;
+            text-align: center;
+            width: 90%;
+            max-width: 900px;
+        }
+        .hidden {
+             display: none; /* Utility class to hide elements */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Binary Tree Visualizer</h1>
+
+    <!-- Tree Type Selection -->
+    <div class="control-group">
+        <label for="treeType">Tree Type:</label>
+        <select id="treeType">
+            <option value="BST" selected>Binary Search Tree (BST)</option>
+            <option value="AVL">AVL Tree</option>
+            <option value="TRAVERSAL">Build from Traversals</option>
+        </select>
+        <button id="clearBtn" style="margin-left: auto;">Clear Tree & Inputs</button> <!-- Moved Clear button here -->
+    </div>
+
+    <!-- Controls for BST/AVL -->
+    <div id="bstAvlControls" class="control-group">
+        <label for="numberSequence">Initial Numbers (comma-separated):</label>
+        <input type="text" id="numberSequence" placeholder="e.g., 50, 30, 70, 20, 40, 60, 80">
+        <button id="visualizeBtn">Build/Reset BST/AVL</button>
+
+        <span style="margin-left: 20px;"> <!-- Spacer --> </span>
+
+        <label for="addValue">Add:</label>
+        <input type="number" id="addValue">
+        <button id="addBtn" disabled>Add Node</button>
+
+        <label for="deleteValue">Delete:</label>
+        <input type="number" id="deleteValue">
+        <button id="deleteBtn" disabled>Delete Node</button>
+    </div>
+
+    <!-- Controls for Building from Traversals -->
+    <div id="traversalControls" class="control-group hidden">
+         <label for="inorderSequence">In-order:</label>
+         <input type="text" id="inorderSequence" placeholder="e.g., 9, 3, 15, 20, 7">
+
+         <label for="traversalType" id="otherSequenceLabel">Pre-order:</label> <!-- Label changes -->
+         <select id="traversalType" style="margin-right: 0;"> <!-- Adjust margin -->
+             <option value="PREORDER" selected>Pre-order</option>
+             <option value="POSTORDER">Post-order</option>
+         </select>
+         <input type="text" id="otherSequence" placeholder="e.g., 3, 9, 20, 15, 7">
+
+         <button id="buildTraversalBtn">Build from Traversals</button>
+    </div>
+
+
+    <div id="messageArea">Select a tree type to start.</div>
+
+    <div id="treeContainer">
+        <svg id="bstSvg"></svg>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const H_SPACING = 45;
+        const V_SPACING = 65;
+        const RADIUS = 20;
+        const PADDING = 30;
+
+        // --- Global State ---
+        let root = null;
+        let currentTreeType = 'BST';
+        let preIndex = 0; // Index for preorder traversal construction
+        let postIndex = 0; // Index for postorder traversal construction
+
+        // --- DOM Elements ---
+        const treeTypeSelect = document.getElementById('treeType');
+        const bstAvlControls = document.getElementById('bstAvlControls');
+        const traversalControls = document.getElementById('traversalControls');
+        const inputElement = document.getElementById('numberSequence');
+        const visualizeBtn = document.getElementById('visualizeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const addValueInput = document.getElementById('addValue');
+        const addBtn = document.getElementById('addBtn');
+        const deleteValueInput = document.getElementById('deleteValue');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const inorderInput = document.getElementById('inorderSequence');
+        const otherInput = document.getElementById('otherSequence');
+        const traversalTypeSelect = document.getElementById('traversalType');
+        const otherSequenceLabel = document.getElementById('otherSequenceLabel');
+        const buildTraversalBtn = document.getElementById('buildTraversalBtn');
+        const svgElement = document.getElementById('bstSvg');
+        const messageArea = document.getElementById('messageArea');
+        const treeContainer = document.getElementById('treeContainer');
+
+        // --- Node Class (Remains the same) ---
+        class Node {
+            constructor(value) {
+                this.value = value;
+                this.left = null;
+                this.right = null;
+                this.height = 1; // Used by AVL, ignored otherwise
+                this.x = 0;
+                this.y = 0;
+                this.orderIndex = -1;
+            }
+        }
+
+        // --- Tree Utilities (AVL Height, Balance, Rotations - remain the same) ---
+        function getHeight(node) { return node ? node.height : 0; }
+        function updateHeight(node) { if (node) node.height = 1 + Math.max(getHeight(node.left), getHeight(node.right));}
+        function getBalanceFactor(node) { return node ? getHeight(node.left) - getHeight(node.right) : 0; }
+        function rotateRight(y) { /* ... same as before ... */
+            console.log(`Rotate Right around ${y.value}`); let x=y.left,T2=x.right; x.right=y; y.left=T2; updateHeight(y); updateHeight(x); return x;
+        }
+        function rotateLeft(x) { /* ... same as before ... */
+             console.log(`Rotate Left around ${x.value}`); let y=x.right, T2=y.left; y.left=x; x.right=T2; updateHeight(x); updateHeight(y); return y;
+        }
+
+        // --- Insertion Logic (BST/AVL - remain the same) ---
+        function insertBstNode(node, value) { /* ... same as before ... */
+             if(node===null) return new Node(value); if(value<node.value) node.left=insertBstNode(node.left, value); else if(value>node.value) node.right=insertBstNode(node.right,value); else setMessage(`Value ${value} already exists.`); return node;
+        }
+        function insertAvlNode(node, value) { /* ... same as before ... */
+             if(node===null) return new Node(value); if(value<node.value) node.left=insertAvlNode(node.left, value); else if(value>node.value) node.right=insertAvlNode(node.right,value); else {setMessage(`Value ${value} already exists.`); return node;} updateHeight(node); let balance=getBalanceFactor(node); if(balance>1&&value<node.left.value){setMessage(`AVL Rebalance: Right Rotation at ${node.value}`);return rotateRight(node);} if(balance<-1&&value>node.right.value){setMessage(`AVL Rebalance: Left Rotation at ${node.value}`);return rotateLeft(node);} if(balance>1&&value>node.left.value){setMessage(`AVL Rebalance: LR Rotations at ${node.left.value}, ${node.value}`);node.left=rotateLeft(node.left); return rotateRight(node);} if(balance<-1&&value<node.right.value){setMessage(`AVL Rebalance: RL Rotations at ${node.right.value}, ${node.value}`);node.right=rotateRight(node.right); return rotateLeft(node);} return node;
+        }
+
+        // --- Deletion Logic (BST/AVL - remain the same, including findMinValueNode) ---
+        function findMinValueNode(node) { /* ... same as before ... */
+             let current=node; while(current&&current.left!==null) current=current.left; return current;
+        }
+        function deleteBstNode(node, value) { /* ... same as before ... */
+            if(node===null){setMessage(`Value ${value} not found.`); return node;} if(value<node.value) node.left=deleteBstNode(node.left,value); else if(value>node.value) node.right=deleteBstNode(node.right,value); else { if(node.left===null) return node.right; else if(node.right===null) return node.left; let temp=findMinValueNode(node.right); node.value=temp.value; node.right=deleteBstNode(node.right,temp.value);} return node;
+        }
+        function deleteAvlNode(node, value) { /* ... same as before ... */
+            if(node===null){setMessage(`Value ${value} not found.`); return node;} if(value<node.value) node.left=deleteAvlNode(node.left,value); else if(value>node.value) node.right=deleteAvlNode(node.right,value); else { if(node.left===null||node.right===null) {let temp=node.left?node.left:node.right; node=temp;} else {let temp=findMinValueNode(node.right); node.value=temp.value; node.right=deleteAvlNode(node.right,temp.value);} } if(node===null) return node; updateHeight(node); let balance=getBalanceFactor(node); if(balance>1&&getBalanceFactor(node.left)>=0){setMessage(`AVL Rebalance: R Rot at ${node.value}`); return rotateRight(node);} if(balance>1&&getBalanceFactor(node.left)<0){setMessage(`AVL Rebalance: LR Rot at ${node.left.value}, ${node.value}`); node.left=rotateLeft(node.left); return rotateRight(node);} if(balance<-1&&getBalanceFactor(node.right)<=0){setMessage(`AVL Rebalance: L Rot at ${node.value}`); return rotateLeft(node);} if(balance<-1&&getBalanceFactor(node.right)>0){setMessage(`AVL Rebalance: RL Rot at ${node.right.value}, ${node.value}`); node.right=rotateRight(node.right); return rotateLeft(node);} return node;
+        }
+
+
+        // --- Tree Construction from Traversals ---
+
+        // Helper to build a map for quick inorder index lookup
+        function buildInorderMap(inorder) {
+            const map = new Map();
+            inorder.forEach((value, index) => map.set(value, index));
+            return map;
+        }
+
+        // Build from Inorder and Preorder
+        function buildTreeInPre(preorder, inorderMap, inStart, inEnd) {
+            if (inStart > inEnd || preIndex >= preorder.length) {
+                return null;
+            }
+
+            const rootValue = preorder[preIndex++];
+            const newNode = new Node(rootValue);
+
+            if (!inorderMap.has(rootValue)) {
+                throw new Error(`Value ${rootValue} from preorder not found in inorder.`);
+            }
+            const inIndex = inorderMap.get(rootValue);
+
+             // Check if calculated index is within the current subarray bounds
+            if (inIndex < inStart || inIndex > inEnd) {
+                 // This indicates inconsistency between preorder and inorder structure
+                 // Usually caught by the main validation, but good to have a check here.
+                 throw new Error(`Inorder index ${inIndex} for value ${rootValue} is outside the current bounds [${inStart}, ${inEnd}]. Traversal mismatch.`);
+            }
+
+
+            newNode.left = buildTreeInPre(preorder, inorderMap, inStart, inIndex - 1);
+            newNode.right = buildTreeInPre(preorder, inorderMap, inIndex + 1, inEnd);
+
+            return newNode;
+        }
+
+        // Build from Inorder and Postorder
+        function buildTreeInPost(postorder, inorderMap, inStart, inEnd) {
+             if (inStart > inEnd || postIndex < 0) {
+                return null;
+            }
+
+            const rootValue = postorder[postIndex--];
+            const newNode = new Node(rootValue);
+
+             if (!inorderMap.has(rootValue)) {
+                 throw new Error(`Value ${rootValue} from postorder not found in inorder.`);
+            }
+            const inIndex = inorderMap.get(rootValue);
+
+             // Check if calculated index is within the current subarray bounds
+            if (inIndex < inStart || inIndex > inEnd) {
+                 throw new Error(`Inorder index ${inIndex} for value ${rootValue} is outside the current bounds [${inStart}, ${inEnd}]. Traversal mismatch.`);
+            }
+
+            // IMPORTANT: Build right subtree first for postorder because we consume from the end
+            newNode.right = buildTreeInPost(postorder, inorderMap, inIndex + 1, inEnd);
+            newNode.left = buildTreeInPost(postorder, inorderMap, inStart, inIndex - 1);
+
+            return newNode;
+        }
+
+        // --- Position Calculation (In-order traversal based - remains the same) ---
+        let currentOrderIndex = 0;
+        function calculatePositions(node, depth) { /* ... same as before ... */
+             if(node===null) return; calculatePositions(node.left,depth+1); node.y=PADDING+depth*V_SPACING; node.orderIndex=currentOrderIndex++; node.x=PADDING+node.orderIndex*H_SPACING; calculatePositions(node.right,depth+1);
+        }
+
+        // --- Drawing Functions (remain the same) ---
+        function createSvgElement(type, attributes) { /* ... same as before ... */
+            const el=document.createElementNS("http://www.w3.org/2000/svg",type); for(const attr in attributes) el.setAttribute(attr,attributes[attr]); return el;
+        }
+         function drawTreeRecursive(node, svgElement) { /* ... same as before ... */
+            if(node===null) return; if(node.left){const l=createSvgElement('line',{x1:node.x,y1:node.y,x2:node.left.x,y2:node.left.y,class:'link'}); svgElement.appendChild(l); drawTreeRecursive(node.left,svgElement);} if(node.right){const l=createSvgElement('line',{x1:node.x,y1:node.y,x2:node.right.x,y2:node.right.y,class:'link'}); svgElement.appendChild(l); drawTreeRecursive(node.right,svgElement);} const g=createSvgElement('g',{class:'node'}); const c=createSvgElement('circle',{cx:node.x,cy:node.y,r:RADIUS}); const t=createSvgElement('text',{x:node.x,y:node.y,'dominant-baseline':'middle','text-anchor':'middle'}); t.textContent=node.value; g.appendChild(c); g.appendChild(t); svgElement.appendChild(g);
+         }
+
+        // --- UI Helper Functions ---
+        function setMessage(msg) { messageArea.textContent = msg; }
+
+        function enableDisableModifyButtons(enabled) {
+            // Only enable if tree is not empty AND type is BST or AVL
+            const enable = enabled && root !== null && (currentTreeType === 'BST' || currentTreeType === 'AVL');
+            addBtn.disabled = !enable;
+            deleteBtn.disabled = !enable;
+            addValueInput.disabled = !enable; // Also disable inputs
+            deleteValueInput.disabled = !enable;
+        }
+
+        function parseInputNumbers(inputText) {
+             return inputText.split(',')
+                 .map(s => s.trim())
+                 .filter(s => s !== '')
+                 .map(s => parseInt(s, 10))
+                 .filter(num => !isNaN(num)); // Ensure only valid numbers remain
+         }
+
+        // --- Update UI Based on Tree Type Selection ---
+        function updateUiForTreeType() {
+            currentTreeType = treeTypeSelect.value;
+            setMessage(`Switched to ${treeTypeSelect.options[treeTypeSelect.selectedIndex].text} mode.`);
+
+            if (currentTreeType === 'TRAVERSAL') {
+                bstAvlControls.classList.add('hidden');
+                traversalControls.classList.remove('hidden');
+                enableDisableModifyButtons(false); // No modify for traversal trees
+            } else { // BST or AVL
+                bstAvlControls.classList.remove('hidden');
+                traversalControls.classList.add('hidden');
+                // Enable/disable modify buttons based on whether a tree currently exists
+                enableDisableModifyButtons(root !== null);
+            }
+             // Also clear the tree visualization when switching modes for clarity
+             // root = null;
+             // updateVisualization("Select inputs for the new mode.");
+        }
+
+
+        // --- Main Visualization Update Function ---
+         function updateVisualization(message = "Tree updated.") {
+             svgElement.innerHTML = ''; // Clear SVG
+
+             if (root === null) {
+                 setMessage(message === "Tree updated." ? "Tree is empty." : message); // Use specific message or default
+                 enableDisableModifyButtons(false);
+                 svgElement.setAttribute('viewBox', `0 0 100 50`); // Reset viewbox
+                 treeContainer.style.width = '90%'; // Reset container size
+                 treeContainer.style.height = '450px';
+                 return;
+             }
+
+             // Enable/disable buttons based on current state and type
+             enableDisableModifyButtons(true); // This function internally checks tree type
+
+             currentOrderIndex = 0; // Reset position counter
+             calculatePositions(root, 0);
+
+             // Determine SVG size
+             let maxX = 0, maxY = 0;
+             function findMaxCoords(node) {
+                 if (!node) return;
+                 maxX = Math.max(maxX, node.x); maxY = Math.max(maxY, node.y);
+                 findMaxCoords(node.left); findMaxCoords(node.right);
+             }
+             findMaxCoords(root);
+
+             // Calculate required dimensions, ensuring minimum size
+            const requiredWidth = maxX + PADDING + RADIUS;
+            const requiredHeight = maxY + PADDING + RADIUS;
+            const containerWidth = Math.max(600, requiredWidth + 2*PADDING); // Ensure min width for container
+            const containerHeight = Math.max(450, requiredHeight + PADDING); // Ensure min height for container
+
+             // Set SVG viewbox tightly around content
+             svgElement.setAttribute('viewBox', `0 0 ${requiredWidth + PADDING} ${requiredHeight + PADDING}`);
+
+             // Optional: Adjust container size to fit SVG content if needed, but usually scrollbars are better
+             // treeContainer.style.width = `${containerWidth}px`;
+             // treeContainer.style.height = `${containerHeight}px`;
+
+
+             drawTreeRecursive(root, svgElement);
+             setMessage(message);
+         }
+
+        // --- Validation for Traversals ---
+        function validateTraversals(inorder, otherOrder) {
+            if (!inorder || !otherOrder || inorder.length === 0 || otherOrder.length === 0) {
+                setMessage("Error: Both traversal inputs are required.");
+                return false;
+            }
+            if (inorder.length !== otherOrder.length) {
+                setMessage("Error: In-order and other traversal must have the same length.");
+                return false;
+            }
+            // Check for duplicates within each traversal
+            const inSet = new Set(inorder);
+            const otherSet = new Set(otherOrder);
+            if (inSet.size !== inorder.length || otherSet.size !== otherOrder.length) {
+                 setMessage("Error: Traversal inputs cannot contain duplicate values.");
+                 return false;
+            }
+            // Check if they contain the exact same set of elements
+             if (inSet.size !== otherSet.size) {
+                  setMessage("Error: Traversal inputs must contain the same set of node values.");
+                  return false;
+             }
+             for (const val of inorder) {
+                 if (!otherSet.has(val)) {
+                     setMessage("Error: Traversal inputs must contain the same set of node values.");
+                     return false;
+                 }
+             }
+            return true;
+        }
+
+
+        // --- Event Listeners ---
+        treeTypeSelect.addEventListener('change', updateUiForTreeType);
+
+        // Listener for BST/AVL Build/Reset Button
+        visualizeBtn.addEventListener('click', () => {
+            // currentTreeType is already set by the change listener or initial state
+            const inputText = inputElement.value.trim();
+            const numbers = parseInputNumbers(inputText);
+
+            root = null; // Reset the tree
+
+            if (numbers.length === 0 && inputText.length > 0) {
+                 setMessage("Warning: Input contains non-numeric or invalid data. Building empty tree.");
+                 updateVisualization("Tree is empty.");
+                 return;
+            }
+             if (numbers.length === 0) {
+                 updateVisualization("No numbers entered. Tree is empty.");
+                 return;
+             }
+
+            setMessage(`Building ${currentTreeType} tree...`);
+            const insertFn = currentTreeType === 'AVL' ? insertAvlNode : insertBstNode;
+            try {
+                numbers.forEach(num => { root = insertFn(root, num); });
+                updateVisualization(`${currentTreeType} tree built successfully.`);
+            } catch (error) {
+                setMessage(`Error building tree: ${error.message}`);
+                root = null; // Clear potentially corrupted tree
+                updateVisualization("Build failed.");
+            }
+        });
+
+        // Listener for Traversal Build Button
+        buildTraversalBtn.addEventListener('click', () => {
+            const inorderStr = inorderInput.value.trim();
+            const otherStr = otherInput.value.trim();
+            const traversalType = traversalTypeSelect.value; // PREORDER or POSTORDER
+
+            const inorder = parseInputNumbers(inorderStr);
+            const otherOrder = parseInputNumbers(otherStr);
+
+            if (!validateTraversals(inorder, otherOrder)) {
+                 root = null; // Clear previous tree if validation fails
+                 updateVisualization(); // Update to show error message
+                 return;
+            }
+
+            root = null; // Reset tree before building
+            const inorderMap = buildInorderMap(inorder);
+
+            try {
+                setMessage(`Building tree from In-order and ${traversalType}...`);
+                if (traversalType === 'PREORDER') {
+                    preIndex = 0; // Reset preorder index
+                    root = buildTreeInPre(otherOrder, inorderMap, 0, inorder.length - 1);
+                } else { // POSTORDER
+                    postIndex = inorder.length - 1; // Reset postorder index
+                    root = buildTreeInPost(otherOrder, inorderMap, 0, inorder.length - 1);
+                }
+                 // Final check: If after building, the indices are not fully consumed, it indicates a mismatch
+                 if (traversalType === 'PREORDER' && preIndex !== preorder.length) {
+                     throw new Error("Preorder traversal length mismatch during build.");
+                 }
+                 if (traversalType === 'POSTORDER' && postIndex !== -1) {
+                     throw new Error("Postorder traversal length mismatch during build.");
+                 }
+
+                updateVisualization(`Tree built successfully from traversals.`);
+            } catch (error) {
+                root = null; // Clear potentially corrupted tree
+                setMessage(`Error: ${error.message}`);
+                console.error("Build Error:", error);
+                 updateVisualization("Build failed.");
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+             root = null;
+             inputElement.value = '';
+             addValueInput.value = '';
+             deleteValueInput.value = '';
+             inorderInput.value = '';
+             otherInput.value = '';
+             updateVisualization("Tree and inputs cleared.");
+         });
+
+        addBtn.addEventListener('click', () => { /* ... same as before ... */
+             const val=parseInt(addValueInput.value,10); if(isNaN(val)){setMessage("Invalid number to add.");return;} const fn=currentTreeType==='AVL'?insertAvlNode:insertBstNode; setMessage(`${currentTreeType}: Adding ${val}...`); setTimeout(()=>{root=fn(root,val); updateVisualization(); addValueInput.value='';}, 50);
+        });
+
+        deleteBtn.addEventListener('click', () => { /* ... same as before ... */
+             const val=parseInt(deleteValueInput.value,10); if(isNaN(val)){setMessage("Invalid number to delete.");return;} const fn=currentTreeType==='AVL'?deleteAvlNode:deleteBstNode; setMessage(`${currentTreeType}: Deleting ${val}...`); setTimeout(()=>{root=fn(root,val); updateVisualization(); deleteValueInput.value='';}, 50);
+        });
+
+        // Listener to update the label for the second traversal input
+        traversalTypeSelect.addEventListener('change', () => {
+            otherSequenceLabel.textContent = `${traversalTypeSelect.options[traversalTypeSelect.selectedIndex].text}:`;
+            otherInput.placeholder = `e.g., ${traversalTypeSelect.value === 'PREORDER' ? '3, 9, 20, 15, 7' : '9, 15, 7, 20, 3'}`;
+        });
+
+
+        // Allow Enter key for relevant inputs
+        addValueInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !addBtn.disabled) addBtn.click(); });
+        deleteValueInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !deleteBtn.disabled) deleteBtn.click(); });
+        inputElement.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !visualizeBtn.disabled) visualizeBtn.click(); });
+        inorderInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !buildTraversalBtn.disabled) buildTraversalBtn.click(); });
+        otherInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !buildTraversalBtn.disabled) buildTraversalBtn.click(); });
+
+
+        // --- Initial Page Load Setup ---
+        updateUiForTreeType(); // Set initial UI based on default selection (BST)
+        setMessage("Select tree type or enter numbers for BST/AVL."); // Initial message
+        enableDisableModifyButtons(false); // Modify buttons disabled initially
+
+    </script>
+
+</body>
+</html>
